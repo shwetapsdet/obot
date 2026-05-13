@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import Layout from '$lib/components/Layout.svelte';
 	import Pagination from '$lib/components/table/Pagination.svelte';
@@ -31,15 +32,13 @@
 	let configHash = $derived(page.params.hash);
 
 	type Row = DeviceMCPServerOccurrence & {
-		id: string;
 		shortDeviceID: string;
 		scannedRelative: string;
 	};
 
 	let rows = $derived<Row[]>(
-		(occurrencesResp.items ?? []).map((o, i) => ({
+		(occurrencesResp.items ?? []).map((o) => ({
 			...o,
-			id: `${o.deviceScanID}-${o.index}-${i}`,
 			shortDeviceID: (o.deviceID ?? '').slice(0, 12),
 			scannedRelative: formatTimeAgo(o.scannedAt).relativeTime
 		}))
@@ -147,12 +146,13 @@
 
 			<div class="flex flex-col gap-2">
 				<h3 class="text-on-surface1 text-sm font-semibold">
-					Devices · {total} occurrence{total === 1 ? '' : 's'}
+					Occurrences · {total}
 				</h3>
 				<Table
 					data={rows}
-					fields={['shortDeviceID', 'scannedRelative', 'client', 'scope']}
+					fields={['id', 'shortDeviceID', 'scannedRelative', 'client', 'scope']}
 					headers={[
+						{ title: '#', property: 'id' },
 						{ title: 'Device', property: 'shortDeviceID' },
 						{ title: 'Scanned', property: 'scannedRelative' },
 						{ title: 'Client', property: 'client' },
@@ -160,14 +160,21 @@
 					]}
 					onClickRow={(d, isCtrlClick) => {
 						openUrl(
-							`/admin/devices/${d.deviceID}/scans/${d.deviceScanID}/mcp/${d.index}`,
+							`/admin/devices/${d.deviceID}/scans/${d.deviceScanID}/mcp/${d.id}`,
 							isCtrlClick
 						);
 					}}
 				>
 					{#snippet onRenderColumn(property, d: Row)}
 						{#if property === 'shortDeviceID'}
-							<span class="font-mono text-xs" title={d.deviceID}>{d.shortDeviceID}</span>
+							<a
+								href={resolve(`/admin/devices/${d.deviceID}`)}
+								class="font-mono text-xs btn-link text-blue-500"
+								title={d.deviceID}
+								onclick={(e) => e.stopPropagation()}
+							>
+								{d.shortDeviceID}
+							</a>
 						{:else}
 							{d[property as keyof Row]}
 						{/if}

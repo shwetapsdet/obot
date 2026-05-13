@@ -2,6 +2,10 @@ package types
 
 // DeviceScanManifest is what `obot scan` submits. Server-assigned
 // fields (id, receivedAt, submittedBy) live on DeviceScan instead.
+// Child observations share the same wire type for submission and
+// response — the ID field is server-set and decoded into a zero value
+// on submission, which DeviceScanFromManifest deliberately does not
+// copy. Submitters cannot trample existing row PKs.
 type DeviceScanManifest struct {
 	// ScannerVersion is the obot version that produced the scan.
 	ScannerVersion string `json:"scannerVersion"`
@@ -64,8 +68,11 @@ type DeviceScanFile struct {
 	Content string `json:"content,omitempty"`
 }
 
-// DeviceScanMCPServer is one MCP server observation.
+// DeviceScanMCPServer is one MCP server observation. ID is
+// server-assigned on insert and stable across responses.
 type DeviceScanMCPServer struct {
+	// ID is the row's primary key. Server-set; ignored on submission.
+	ID uint `json:"id,omitempty"`
 	// Client is the canonical client name (e.g. "cursor"); empty for orphans.
 	Client string `json:"client"`
 	// ProjectPath is the project root for project-scope observations; empty for global.
@@ -92,8 +99,11 @@ type DeviceScanMCPServer struct {
 	URL string `json:"url,omitempty"`
 }
 
-// DeviceScanSkill is one skill (SKILL.md) observation.
+// DeviceScanSkill is one skill (SKILL.md) observation. ID is
+// server-assigned on insert and stable across responses.
 type DeviceScanSkill struct {
+	// ID is the row's primary key. Server-set; ignored on submission.
+	ID uint `json:"id,omitempty"`
 	// Client is the canonical client name; "multi" for free-floating
 	// SKILL.md files with no canonical owning client (e.g.
 	// .agents/skills, .agent/skills, project skills outside a known
@@ -137,8 +147,11 @@ type DeviceScanClient struct {
 	HasPlugins bool `json:"hasPlugins"`
 }
 
-// DeviceScanPlugin is one plugin observation.
+// DeviceScanPlugin is one plugin observation. ID is server-assigned
+// on insert and stable across responses.
 type DeviceScanPlugin struct {
+	// ID is the row's primary key. Server-set; ignored on submission.
+	ID uint `json:"id,omitempty"`
 	// Client is the canonical client name that owns the plugin host.
 	Client string `json:"client"`
 	// ProjectPath is the project root for project-scope plugins.
@@ -294,8 +307,8 @@ type DeviceMCPServerOccurrence struct {
 	Scope string `json:"scope"`
 	// ScannedAt is when the parent scan was collected on the device.
 	ScannedAt Time `json:"scannedAt"`
-	// Index is the position of this row inside the parent scan's MCPServers slice.
-	Index int `json:"index"`
+	// ID is the observation's stable identifier.
+	ID uint `json:"id"`
 }
 
 type DeviceMCPServerOccurrenceList List[DeviceMCPServerOccurrence]
@@ -324,8 +337,8 @@ type DeviceSkillOccurrence struct {
 	ProjectPath string `json:"projectPath,omitempty"`
 	// ScannedAt is when the parent scan was collected on the device.
 	ScannedAt Time `json:"scannedAt"`
-	// Index is the position of this row inside the parent scan's Skills slice.
-	Index int `json:"index"`
+	// ID is the observation's stable identifier.
+	ID uint `json:"id"`
 }
 
 type DeviceSkillOccurrenceList List[DeviceSkillOccurrence]
@@ -337,4 +350,43 @@ type DeviceSkillOccurrenceResponse struct {
 	Total                     int64 `json:"total"`
 	Limit                     int   `json:"limit"`
 	Offset                    int   `json:"offset"`
+}
+
+// DeviceClientFleetSkill is one skill row on a device client fleet summary
+// (client match, not "multi"; canonical row is earliest observation id per
+// client + skill name).
+type DeviceClientFleetSkill struct {
+	// Name is the skill name (typically from SKILL.md frontmatter).
+	Name string `json:"name"`
+	// Description is the short summary from frontmatter when present.
+	Description string `json:"description,omitempty"`
+	// HasScripts is true when the skill directory includes executable scripts.
+	HasScripts bool `json:"hasScripts"`
+	// Files is the number of file paths recorded for that skill observation.
+	Files int `json:"files"`
+}
+
+// DeviceClientFleetSummary rolls up latest-scan-per-device data for one
+// canonical client name (from device_scan_clients).
+type DeviceClientFleetSummary struct {
+	// Name is the canonical client identifier (e.g. "cursor", "claude-code").
+	Name string `json:"name"`
+	// Users are distinct scan submitters whose latest scan lists this client.
+	Users []string `json:"users"`
+	// Skills lists one entry per distinct skill name with metadata on each
+	// device's latest scan (client match; excludes "multi").
+	Skills []DeviceClientFleetSkill `json:"skills"`
+	// MCPServers are distinct MCP servers (by ConfigHash) observed with
+	// Client == Name in those latest scans; rows with client "multi" are excluded.
+	MCPServers []DeviceMCPServerStat `json:"mcpServers"`
+}
+
+type DeviceClientFleetSummaryList List[DeviceClientFleetSummary]
+
+// DeviceClientFleetSummaryResponse is returned by GET /api/devices/clients.
+type DeviceClientFleetSummaryResponse struct {
+	DeviceClientFleetSummaryList `json:",inline"`
+	Total                        int64 `json:"total"`
+	Limit                        int    `json:"limit"`
+	Offset                       int    `json:"offset"`
 }

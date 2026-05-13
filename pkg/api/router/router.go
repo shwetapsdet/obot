@@ -49,7 +49,7 @@ func Router(ctx context.Context, services *services.Services) (http.Handler, err
 	toolRefs := handlers.NewToolReferenceHandler()
 	cronJobs := handlers.NewCronJobHandler()
 	models := handlers.NewModelHandler(services.ModelAccessPolicyHelper)
-	mcpCatalogs := handlers.NewMCPCatalogHandler(services.DefaultMCPCatalogPath, services.ServerURL, services.MCPLoader, oauthChecker, services.GatewayClient, services.AccessControlRuleHelper)
+	mcpCatalogs := handlers.NewMCPCatalogHandler(services.DefaultMCPCatalogPath, services.ServerURL, services.MCPRuntimeBackend, services.MCPLoader, oauthChecker, services.GatewayClient, services.AccessControlRuleHelper)
 	systemMCPCatalogs := handlers.NewSystemMCPCatalogHandler(services.DefaultSystemMCPCatalogPath)
 	accessControlRules := handlers.NewAccessControlRuleHandler()
 	skillRepositories := handlers.NewSkillRepositoryHandler()
@@ -810,6 +810,8 @@ func Router(ctx context.Context, services *services.Services) (http.Handler, err
 	mux.HandleFunc("GET /api/devices/skills", deviceScans.ListSkills)
 	mux.HandleFunc("GET /api/devices/skills/{name}", deviceScans.GetSkill)
 	mux.HandleFunc("GET /api/devices/skills/{name}/occurrences", deviceScans.ListSkillOccurrences)
+	mux.HandleFunc("GET /api/devices/clients", deviceScans.ListClients)
+	mux.HandleFunc("GET /api/devices/clients/{name}", deviceScans.GetClient)
 
 	// Available Models
 	mux.HandleFunc("GET /api/available-models", availableModels.List)
@@ -870,7 +872,7 @@ func Router(ctx context.Context, services *services.Services) (http.Handler, err
 	wellknown.SetupHandlers(services.ServerURL, services.OAuthServerConfig, services.RegistryNoAuth, mux)
 
 	// Obot OAuth
-	oauth.SetupHandlers(oauthChecker, services.MCPOAuthTokenStorage, services.PersistentTokenServer, services.OAuthServerConfig, services.ServerURL, mux)
+	oauth.SetupHandlers(oauthChecker, services.MCPOAuthTokenStorage, services.PersistentTokenServer, services.OAuthServerConfig, services.ServerURL, services.MCPOAuthClientSecretExpiration, mux)
 
 	// Gateway APIs
 	services.GatewayServer.AddRoutes(services.APIServer)

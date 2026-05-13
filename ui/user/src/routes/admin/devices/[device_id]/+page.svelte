@@ -2,6 +2,7 @@
 	import { resolve } from '$app/paths';
 	import { tooltip } from '$lib/actions/tooltip.svelte';
 	import CopyButton from '$lib/components/CopyButton.svelte';
+	import DotDotDot from '$lib/components/DotDotDot.svelte';
 	import Layout from '$lib/components/Layout.svelte';
 	import Table from '$lib/components/table/Table.svelte';
 	import { PAGE_TRANSITION_DURATION } from '$lib/constants';
@@ -17,7 +18,7 @@
 	import { formatTimeAgo } from '$lib/time';
 	import { goto } from '$lib/url';
 	import { openUrl } from '$lib/utils';
-	import { Boxes, Cpu, MonitorCheck, PencilRuler, Server } from 'lucide-svelte';
+	import { Boxes, Cpu, Ellipsis, MonitorCheck, PencilRuler, Scale, Server } from 'lucide-svelte';
 	import { fly } from 'svelte/transition';
 
 	type Tab = 'mcp' | 'skills' | 'plugins' | 'clients';
@@ -59,26 +60,22 @@
 	let clients = $derived<DeviceScanClient[]>(latest?.clients ?? []);
 
 	type MCPRow = DeviceScanMCPServer & {
-		id: string;
-		index: number;
+		id: number;
 		scope: string;
 		endpoint: string;
 	};
 	type SkillRow = DeviceScanSkill & {
-		id: string;
-		index: number;
+		id: number;
 		scope: string;
 		files_count: number;
 	};
 	type PluginRow = DeviceScanPlugin & {
-		id: string;
-		index: number;
+		id: number;
 		scope: string;
 		capabilities: string;
 	};
 	type ClientRow = DeviceScanClient & {
 		id: string;
-		index: number;
 		paths_display: string;
 		has_display: string;
 	};
@@ -124,30 +121,24 @@
 	}
 
 	let mcpRows = $derived<MCPRow[]>(
-		mcpServers.map((m, i) => ({
+		mcpServers.map((m) => ({
 			...m,
-			id: `${m.client}-${m.name}-${i}`,
-			index: i,
 			scope: deriveScope(m.projectPath),
 			endpoint: m.transport === 'stdio' ? formatCommand(m.command, m.args) : m.url || '—'
 		}))
 	);
 
 	let skillRows = $derived<SkillRow[]>(
-		skills.map((s, i) => ({
+		skills.map((s) => ({
 			...s,
-			id: `${s.client}-${s.name}-${i}`,
-			index: i,
 			scope: deriveScope(s.projectPath),
 			files_count: (s.files ?? []).length
 		}))
 	);
 
 	let pluginRows = $derived<PluginRow[]>(
-		plugins.map((p, i) => ({
+		plugins.map((p) => ({
 			...p,
-			id: `${p.client}-${p.name}-${i}`,
-			index: i,
 			scope: deriveScope(p.projectPath),
 			capabilities: capabilitySummary(p)
 		}))
@@ -157,7 +148,6 @@
 		clients.map((c, i) => ({
 			...c,
 			id: `${c.name}-${i}`,
-			index: i,
 			paths_display: clientPathsSummary(c),
 			has_display: clientHasSummary(c)
 		}))
@@ -196,7 +186,17 @@
 	<title>Obot | Device {deviceId.slice(0, 12)}</title>
 </svelte:head>
 
-<Layout title="Device" showBackButton onBackButtonClick={() => goto(resolve('/admin/devices'))}>
+<Layout
+	title="Device"
+	showBackButton
+	onBackButtonClick={() => {
+		if (typeof window !== 'undefined' && window.history.length > 1) {
+			window.history.back();
+		} else {
+			goto(resolve('/admin/devices'));
+		}
+	}}
+>
 	<div
 		class="flex flex-col gap-6"
 		in:fly={{ x: 100, duration, delay: duration }}
@@ -307,7 +307,7 @@
 						<Table
 							data={mcpRows}
 							pageSize={PAGE_SIZE}
-							fields={['client', 'scope', 'name', 'transport', 'endpoint']}
+							fields={['name', 'client', 'scope', 'transport', 'endpoint']}
 							headers={[
 								{ title: 'Client', property: 'client' },
 								{ title: 'Scope', property: 'scope' },
@@ -319,7 +319,7 @@
 							filterable={['client', 'transport', 'scope']}
 							onClickRow={(d, isCtrlClick) => {
 								openUrl(
-									resolve(`/admin/devices/${deviceId}/scans/${latest.id}/mcp/${d.index}`),
+									resolve(`/admin/devices/${deviceId}/scans/${latest?.id}/mcp/${d.id}`),
 									isCtrlClick
 								);
 							}}
@@ -329,9 +329,46 @@
 									<span class="font-mono text-xs">{d.name}</span>
 								{:else if property === 'endpoint'}
 									<span class="font-mono text-xs">{d.endpoint}</span>
+								{:else if property === 'client'}
+									<a
+										class="btn-link text-blue-500"
+										href={resolve(`/admin/device-clients/${encodeURIComponent(d.client)}`)}
+										onclick={(e) => e.stopPropagation()}
+									>
+										{d.client}
+									</a>
 								{:else}
 									{d[property as keyof MCPRow] ?? '—'}
 								{/if}
+							{/snippet}
+
+							{#snippet actions(d)}
+								<DotDotDot class="icon-button hover:dark:bg-background/50">
+									{#snippet icon()}
+										<Ellipsis class="size-4" />
+									{/snippet}
+									{#snippet children({ toggle })}
+										<button
+											class="menu-button"
+											onclick={(e) => {
+												e.stopPropagation();
+												e.preventDefault();
+												if (!d.configHash) {
+													console.error('No config hash found for MCP server', d);
+													return;
+												}
+												const isCtrlClick = e.ctrlKey || e.metaKey;
+												openUrl(
+													resolve(`/admin/device-mcp-servers/${encodeURIComponent(d.configHash)}`),
+													isCtrlClick
+												);
+												toggle();
+											}}
+										>
+											<Scale class="size-4" /> View Related Occurrences
+										</button>
+									{/snippet}
+								</DotDotDot>
 							{/snippet}
 						</Table>
 					{/if}
@@ -342,7 +379,7 @@
 						<Table
 							data={skillRows}
 							pageSize={PAGE_SIZE}
-							fields={['client', 'scope', 'name', 'description', 'hasScripts', 'files_count']}
+							fields={['name', 'client', 'scope', 'description', 'hasScripts', 'files_count']}
 							headers={[
 								{ title: 'Client', property: 'client' },
 								{ title: 'Scope', property: 'scope' },
@@ -355,7 +392,7 @@
 							filterable={['client', 'scope']}
 							onClickRow={(d, isCtrlClick) => {
 								openUrl(
-									resolve(`/admin/devices/${deviceId}/scans/${latest.id}/skills/${d.index}`),
+									resolve(`/admin/devices/${deviceId}/scans/${latest?.id}/skills/${d.id}`),
 									isCtrlClick
 								);
 							}}
@@ -365,9 +402,40 @@
 									<span class="text-on-surface1 text-xs">{d.description ?? '—'}</span>
 								{:else if property === 'hasScripts'}
 									{d.hasScripts ? 'yes' : 'no'}
+								{:else if property === 'client'}
+									<a
+										class="btn-link text-blue-500"
+										href={resolve(`/admin/device-clients/${encodeURIComponent(d.client)}`)}
+										onclick={(e) => e.stopPropagation()}
+									>
+										{d.client}
+									</a>
 								{:else}
 									{d[property as keyof SkillRow] ?? '—'}
 								{/if}
+							{/snippet}
+
+							{#snippet actions(d)}
+								<DotDotDot class="icon-button hover:dark:bg-background/50">
+									{#snippet icon()}
+										<Ellipsis class="size-4" />
+									{/snippet}
+									{#snippet children({ toggle })}
+										<button
+											class="menu-button"
+											onclick={(e) => {
+												const isCtrlClick = e.ctrlKey || e.metaKey;
+												openUrl(
+													resolve(`/admin/device-skills/${encodeURIComponent(d.name)}`),
+													isCtrlClick
+												);
+												toggle();
+											}}
+										>
+											<Scale class="size-4" /> View Related Occurrences
+										</button>
+									{/snippet}
+								</DotDotDot>
 							{/snippet}
 						</Table>
 					{/if}
@@ -379,9 +447,9 @@
 							data={pluginRows}
 							pageSize={PAGE_SIZE}
 							fields={[
+								'name',
 								'client',
 								'scope',
-								'name',
 								'pluginType',
 								'version',
 								'enabled',
@@ -400,7 +468,7 @@
 							filterable={['client', 'pluginType', 'scope']}
 							onClickRow={(d, isCtrlClick) => {
 								openUrl(
-									resolve(`/admin/devices/${deviceId}/scans/${latest.id}/plugins/${d.index}`),
+									resolve(`/admin/devices/${deviceId}/scans/${latest?.id}/plugins/${d.id}`),
 									isCtrlClick
 								);
 							}}
@@ -410,6 +478,14 @@
 									{d.enabled ? 'yes' : 'no'}
 								{:else if property === 'version'}
 									<span class="font-mono text-xs">{d.version ?? '—'}</span>
+								{:else if property === 'client'}
+									<a
+										class="btn-link text-blue-500"
+										href={resolve(`/admin/device-clients/${encodeURIComponent(d.client)}`)}
+										onclick={(e) => e.stopPropagation()}
+									>
+										{d.client}
+									</a>
 								{:else}
 									{d[property as keyof PluginRow] ?? '—'}
 								{/if}

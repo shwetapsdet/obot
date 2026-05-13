@@ -1,5 +1,6 @@
 import {
 	type MCPServerTool,
+	type MCPSecretBinding,
 	type Project,
 	type RemoteRuntimeConfig,
 	type MultiUserConfig,
@@ -113,7 +114,9 @@ export interface MCPCatalogEntryFieldManifest {
 	sensitive: boolean;
 	value: string;
 	file?: boolean;
+	dynamicFile?: boolean;
 	prefix?: string;
+	secretBinding?: MCPSecretBinding;
 }
 
 export type MCPCatalogEntryFormData = Omit<MCPCatalogEntryServerManifest, 'metadata'> & {
@@ -162,6 +165,7 @@ export interface MCPHeaderManifest {
 	sensitive: boolean;
 	required: boolean;
 	prefix?: string;
+	secretBinding?: MCPSecretBinding;
 }
 
 export interface MCPFilterRemoteRuntimeConfig {
@@ -1005,13 +1009,6 @@ export interface MessagePolicyViolationStats {
 	byDirection: MessagePolicyViolationDirectionCounts;
 }
 
-export interface DeploymentCondition {
-	type: string;
-	status: string;
-	reason?: string;
-	message?: string;
-}
-
 export interface SystemMCPServerManifest {
 	metadata?: Record<string, string>;
 	name: string;
@@ -1046,7 +1043,6 @@ export interface SystemMCPServer {
 	deploymentAvailableReplicas?: number;
 	deploymentReadyReplicas?: number;
 	deploymentReplicas?: number;
-	deploymentConditions?: DeploymentCondition[];
 	k8sSettingsHash?: string;
 }
 
@@ -1136,6 +1132,7 @@ export interface DeviceScanFile {
 }
 
 export interface DeviceScanMCPServer {
+	id: number;
 	client: string;
 	projectPath?: string;
 	file?: string;
@@ -1150,6 +1147,7 @@ export interface DeviceScanMCPServer {
 }
 
 export interface DeviceScanSkill {
+	id: number;
 	client: string;
 	projectPath?: string;
 	file?: string;
@@ -1161,6 +1159,7 @@ export interface DeviceScanSkill {
 }
 
 export interface DeviceScanPlugin {
+	id: number;
 	client: string;
 	projectPath?: string;
 	configPath?: string;
@@ -1253,7 +1252,7 @@ export interface DeviceMCPServerOccurrence {
 	client: string;
 	scope: string;
 	scannedAt: string;
-	index: number;
+	id: number;
 }
 
 export interface DeviceMCPServerOccurrenceList {
@@ -1272,6 +1271,41 @@ export interface DeviceClientStat {
 	userCount: number;
 	observationCount: number;
 }
+
+/** One skill row on a device client fleet summary (client match; excludes "multi"). */
+export interface DeviceClientFleetSkill {
+	name: string;
+	description?: string;
+	hasScripts: boolean;
+	/** Number of file paths recorded for that skill observation. */
+	files: number;
+}
+
+/** Rolls up latest-scan-per-device data for one canonical client name. */
+export interface DeviceClientFleetSummary {
+	name: string;
+	users: string[] | null;
+	skills: DeviceClientFleetSkill[] | null;
+	mcpServers: DeviceMCPServerStat[] | null;
+}
+
+export interface DeviceClientFleetSummaryList {
+	items: DeviceClientFleetSummary[] | null;
+}
+
+/** Returned by GET /api/devices/clients */
+export interface DeviceClientFleetSummaryResponse extends DeviceClientFleetSummaryList {
+	total: number;
+	limit: number;
+	offset: number;
+}
+
+export type DeviceClientListFilters = {
+	/** Case-insensitive substring match on client name (server uses ILIKE on PostgreSQL). */
+	name?: string;
+	limit?: number;
+	offset?: number;
+};
 
 export interface DeviceSkillStat {
 	name: string;
@@ -1320,7 +1354,7 @@ export interface DeviceSkillOccurrence {
 	scope: string;
 	projectPath?: string;
 	scannedAt: string;
-	index: number;
+	id: number;
 }
 
 export interface DeviceSkillOccurrenceList {

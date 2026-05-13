@@ -12,8 +12,10 @@
 
 	let { data } = $props();
 	let scan = $derived(data?.scan);
-	let index = $derived(Number(page.params.index));
-	let server = $derived<DeviceScanMCPServer | undefined>(scan?.mcpServers?.[index]);
+	let id = $derived(Number(page.params.id));
+	let server = $derived<DeviceScanMCPServer | undefined>(
+		scan?.mcpServers?.find((m) => m.id === id)
+	);
 	let backHref = $derived(`/admin/devices/${page.params.device_id}/scans/${page.params.scan_id}`);
 
 	let endpoint = $derived(
@@ -51,7 +53,13 @@
 <Layout
 	title={server?.name || 'MCP Server'}
 	showBackButton
-	onBackButtonClick={() => goto(backHref)}
+	onBackButtonClick={() => {
+		if (typeof window !== 'undefined' && window.history.length > 1) {
+			window.history.back();
+		} else {
+			goto(backHref);
+		}
+	}}
 >
 	<div
 		class="flex flex-col gap-6"
@@ -138,7 +146,7 @@
 							<a
 								class="text-link font-mono"
 								href={resolve(
-									`/admin/devices/${page.params.device_id}/scans/${page.params.scan_id}/plugins/${parentPlugin.index}`
+									`/admin/devices/${page.params.device_id}/scans/${page.params.scan_id}/plugins/${parentPlugin.id}`
 								)}
 							>
 								{parentPlugin.name}
